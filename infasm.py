@@ -1,24 +1,44 @@
-from ply import lex, yacc
-
 # Infasm - An Inform 6 assembler for the Z-Machine
 # Copyright (c) 2009, Dannii Willis
 # Released under a BSD-like licence, see LICENCE
 
-# Assembly tokens
-tokens = (
-	'COMMENT',
-	'NAME',
-	'NUMBER',
-	'OPCODE'
-)
+from ply import lex, yacc
 
-literals = '.;->?~[]'
+# Directives
+directives = {
+	'array': 'ARRAY',
+	'constant': 'CONSTANT',
+	'global': 'GLOBAL',
+}
+
+# Assembly tokens
+tokens = [
+	'COMMENT',
+	'ID',
+	'LABEL',
+	'NUMBER',
+	'OPCODE',
+] + list(directives.values())
+
+literals = ';->?~[]'
 
 # Token specifications
 t_ignore_COMMENT = r'!.*'
-t_NAME = r'[a-zA-Z][a-zA-Z0-9_]*'
-t_OPCODE = r'@[a-zA-Z][a-zA-Z0-9_]*'
 
+# Convert IDs to lowercase and check for directives
+def t_ID(t):
+	r'[a-zA-Z][a-zA-Z_0-9]*'
+	t.value = t.value.lower()
+	t.type = directives.get(t.value,'ID')
+	return t
+
+# Strip the . and ; from labels
+def t_LABEL(t):
+	r'\.[a-zA-Z][a-zA-Z0-9_]*;'
+	t.value = t.value[1:-1]
+	return t
+
+# Allow decimal and hexadecimal number literals
 def t_NUMBER(t):
 	r'($|-)?\d+'
 	if t.value[0] == '$':
@@ -32,6 +52,12 @@ def t_NUMBER(t):
 		t.value = 0 
 	return t
 
+# Strip the initial @ from opcodes
+def t_OPCODE(t):
+	r'@[a-zA-Z][a-zA-Z0-9_]*'
+	t.value = t.value[1:]
+	return t
+
 # Non-tokens
 t_ignore = " \t"
 
@@ -41,8 +67,8 @@ def t_newline(t):
 
 # Error handling rule
 def t_error(t):
-    print "Illegal character '%s'" % t.value[0]
-    t.lexer.skip(1)
+	print "Illegal character '%s'" % t.value[0]
+	t.lexer.skip(1)
 
 # Build the lexer
 lexer = lex.lex()
