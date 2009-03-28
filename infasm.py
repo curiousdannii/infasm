@@ -4,7 +4,7 @@
 
 from ply import lex, yacc
 
-# Directives
+# Some of the Inform 6 directives
 directives = {
 	'array': 'ARRAY',
 	'constant': 'CONSTANT',
@@ -40,13 +40,14 @@ def t_LABEL(t):
 
 # Allow decimal and hexadecimal number literals
 def t_NUMBER(t):
-	r'($|-)?\d+'
+	r'(\$|-)?\d+'
 	if t.value[0] == '$':
 		base = 16
+		t.value = t.value[1:]
 	else:
 		base = 10
 	try:
-		t.value = int(t.value)
+		t.value = int(t.value, base)
 	except ValueError:
 		print "Integer value too large", t.value
 		t.value = 0 
