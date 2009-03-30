@@ -71,5 +71,72 @@ def t_error(t):
 	print "Illegal character '%s'" % t.value[0]
 	t.lexer.skip(1)
 
+# An assembly file
+def p_file(p):
+	'''file : file function
+            | function'''
+	if (len(p) == 3):
+		p[1].append(p[2])
+		p[0] = p[1]
+	elif (len(p) == 2):
+		p[0] = ['file', p[1]]
+
+# An Inform 6 function
+def p_function(p):
+	'''function : '[' ID localvars ';' statements ']' ';'
+	            | '[' ID ';' statements ']' ';' '''
+	if (len(p) == 8):
+		p[0] = ['function', p[2], p[3], p[5]]
+	elif (len(p) == 7):
+		p[0] = ['function', p[2], ['localvars'], p[4]]
+
+# A function's local variables list
+def p_localvars(p):
+	'''localvars : localvars ID
+	             | ID'''
+	if (len(p) == 3):
+		p[1].append(p[2])
+		p[0] = p[1]
+	elif (len(p) == 2):
+		p[0] = ['localvars', p[1]]
+
+# A list of statements
+def p_statements(p):
+	'''statements : statements statement
+	              | statement'''
+	if (len(p) == 3):
+		p[1].append(p[2])
+		p[0] = p[1]
+	elif (len(p) == 2):
+		p[0] = ['statements', p[1]]
+
+# An actual statement! :)
+def p_statement(p):
+	'''statement : OPCODE operands ';'
+	             | OPCODE ';' '''
+	if (len(p) == 4):
+		p[0] = ['statement', p[1], p[2]]
+	elif (len(p) == 3):
+		p[0] = ['statement', p[1], ['operands']]
+
+# The list of operands
+def p_operands(p):
+	'''operands : operands ID
+	            | operands NUMBER
+	            | ID
+	            | NUMBER'''
+	if (len(p) == 3):
+		p[1].append(p[2])
+		p[0] = p[1]
+	elif (len(p) == 2):
+		p[0] = ['operands', p[1]]
+
+# Oh dear what have we done
+def p_error(t):
+	print "Syntax error at '%s'" % t.value 
+
 # Build the lexer
 lexer = lex.lex()
+
+# Build the parser
+parser = yacc.yacc()
