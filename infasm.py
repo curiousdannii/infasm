@@ -74,12 +74,13 @@ def t_error(t):
 # An assembly file
 def p_file(p):
 	'''file : file directive
-            | directive'''
+            | empty'''
 	if len(p) == 3:
-		p[1].append(p[2])
+		if p[2]:
+			p[1].append(p[2])
 		p[0] = p[1]
-	elif len(p) == 2:
-		p[0] = ['file', p[1]]
+	else:
+		p[0] = ['file']
 
 # An Inform 6 directive... or some of them at least
 def p_directive(p):
@@ -93,74 +94,66 @@ constants = {}
 def p_constant_equals(p):
 	'''constant : CONSTANT ID '=' NUMBER ';' '''
 	constants[p[2]] = p[4]
-	p[0] = 'constant'
 
 def p_constant(p):
 	'''constant : CONSTANT ID NUMBER ';' '''
 	constants[p[2]] = p[3]
-	p[0] = 'constant'
 
 def p_constant_novalue(p):
 	'''constant : CONSTANT ID ';' '''
 	constants[p[2]] = 0
-	p[0] = 'constant'
 
 # Global variables
 globalvars = {}
 def p_global(p):
 	'''global : GLOBAL ID '=' NUMBER ';' '''
 	globalvars[p[2]] = p[4]
-	p[0] = 'global'
 
 # An Inform 6 function
 def p_function(p):
-	'''function : '[' ID localvars ';' statements ']' ';'
-	            | '[' ID ';' statements ']' ';' '''
-	if len(p) == 8:
-		p[0] = ['function', p[2], p[3], p[5]]
-	elif len(p) == 7:
-		p[0] = ['function', p[2], ['localvars'], p[4]]
+	'''function : '[' ID localvars ';' statements ']' ';' '''
+	p[0] = ['function', p[2], p[3], p[5]]
 
 # A function's local variables list
 def p_localvars(p):
 	'''localvars : localvars ID
-	             | ID'''
+	             | empty'''
 	if len(p) == 3:
 		p[1].append(p[2])
 		p[0] = p[1]
-	elif len(p) == 2:
-		p[0] = ['localvars', p[1]]
+	else:
+		p[0] = ['localvars']
 
 # A list of statements
 def p_statements(p):
 	'''statements : statements statement
-	              | statement'''
+	              | empty'''
 	if len(p) == 3:
 		p[1].append(p[2])
 		p[0] = p[1]
 	elif len(p) == 2:
-		p[0] = ['statements', p[1]]
+		p[0] = ['statements']
 
 # An actual statement! :)
 def p_statement(p):
-	'''statement : OPCODE operands ';'
-	             | OPCODE ';' '''
-	if len(p) == 4:
-		p[0] = ['statement', p[1], p[2]]
-	elif len(p) == 3:
-		p[0] = ['statement', p[1], ['operands']]
+	'''statement : OPCODE operands ';' '''
+	p[0] = ['statement', p[1], p[2]]
 
 # The list of operands
 def p_operands(p):
 	'''operands : operands ID
 	            | operands NUMBER
-	            | ID
-	            | NUMBER'''
+	            | empty'''
 	if len(p) == 3:
 		p[1].append(p[2])
 		p[0] = p[1]
 	elif len(p) == 2:
-		p[0] = ['operands', p[1]]
+		p[0] = ['operands']
+
+# An empty terminal
+def p_empty(p):
+	'''empty :'''
+	pass
 
 # Oh dear what have we done
 def p_error(t):
