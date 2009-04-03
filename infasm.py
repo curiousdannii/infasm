@@ -3,6 +3,7 @@
 # Released under a BSD-like licence, see LICENCE
 
 from ply import lex, yacc
+import warnings
 
 # Some of the Inform 6 directives
 directives = {
@@ -92,21 +93,24 @@ def p_directive(p):
 # Constant declarations
 constants = {}
 def p_constant_equals(p):
-	'''constant : CONSTANT ID '=' NUMBER ';' '''
-	constants[p[2]] = p[4]
-
-def p_constant(p):
-	'''constant : CONSTANT ID NUMBER ';' '''
-	constants[p[2]] = p[3]
-
-def p_constant_novalue(p):
-	'''constant : CONSTANT ID ';' '''
-	constants[p[2]] = 0
+	'''constant : CONSTANT ID '=' NUMBER ';'
+	            | CONSTANT ID NUMBER ';'
+	            | CONSTANT ID ';' '''
+	if p[2] in constants:
+		warnings.warn('''Line %d: Constant '%s' already defined, overwriting''' % (p.lineno(2), p[2]))
+	if len(p) == 6:
+		constants[p[2]] = p[4]
+	elif len(p) == 5:
+		constants[p[2]] = p[3]
+	else:
+		constants[p[2]] = 0
 
 # Global variables
 globalvars = {}
 def p_global(p):
 	'''global : GLOBAL ID '=' NUMBER ';' '''
+	if p[2] in globalvars:
+		warnings.warn('''Line %d: Global '%s' already defined, overwriting''' % (p.lineno(2), p[2]))
 	globalvars[p[2]] = p[4]
 
 # An Inform 6 function
