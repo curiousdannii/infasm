@@ -85,14 +85,23 @@ def p_file(p):
 
 # An Inform 6 directive... or some of them at least
 def p_directive(p):
-	'''directive : constant
+	'''directive : array
+	             | constant
 	             | function
 	             | global'''
 	p[0] = p[1]
 
+# Array declarations
+arrays = {}
+def p_wordarray(p):
+	'''array : ARRAY ID '-' '-' '>' NUMBER ';' '''
+	if p[2] in arrays:
+		warnings.warn('''Line %d: Array '%s' already defined, overwriting''' % (p.lineno(2), p[2]))
+	arrays[p[2]] = p[6]
+
 # Constant declarations
 constants = {}
-def p_constant_equals(p):
+def p_constant(p):
 	'''constant : CONSTANT ID '=' NUMBER ';'
 	            | CONSTANT ID NUMBER ';'
 	            | CONSTANT ID ';' '''
@@ -154,7 +163,7 @@ def p_operands(p):
 	elif len(p) == 2:
 		p[0] = ['operands']
 
-# An empty terminal
+# An empty terminal, simplifies a lot of the above
 def p_empty(p):
 	'''empty :'''
 	pass
