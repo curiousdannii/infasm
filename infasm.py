@@ -3,6 +3,8 @@
 # Released under a BSD-like licence, see LICENCE
 
 from ply import lex, yacc
+import time
+from struct import pack
 import warnings
 
 # Some of the Inform 6 directives
@@ -97,7 +99,8 @@ def p_wordarray(p):
 	'''array : ARRAY ID '-' '-' '>' NUMBER ';' '''
 	if p[2] in arrays:
 		warnings.warn('''Line %d: Array '%s' already defined, overwriting''' % (p.lineno(2), p[2]))
-	arrays[p[2]] = p[6]
+	arrays[p[2]] = {'len': p[6]}
+	p[0] = ['array', p[2], p[6]]
 
 # Constant declarations
 constants = {}
@@ -109,10 +112,13 @@ def p_constant(p):
 		warnings.warn('''Line %d: Constant '%s' already defined, overwriting''' % (p.lineno(2), p[2]))
 	if len(p) == 6:
 		constants[p[2]] = p[4]
+		p[0] = ['constant', p[2], p[4]]
 	elif len(p) == 5:
 		constants[p[2]] = p[3]
+		p[0] = ['constant', p[2], p[3]]
 	else:
 		constants[p[2]] = 0
+		p[0] = ['constant', p[2], 0]
 
 # Global variables
 globalvars = {}
@@ -120,11 +126,14 @@ def p_global(p):
 	'''global : GLOBAL ID '=' NUMBER ';' '''
 	if p[2] in globalvars:
 		warnings.warn('''Line %d: Global '%s' already defined, overwriting''' % (p.lineno(2), p[2]))
-	globalvars[p[2]] = p[4]
+	globalvars[p[2]] = {'value': p[6]}
+	p[0] = ['global', p[2], p[6]]
 
 # An Inform 6 function
+functionlist = {}
 def p_function(p):
 	'''function : '[' ID localvars ';' statements ']' ';' '''
+	functionlist[p[2]] = {'localvars': p[3], 'statements': p[5]}
 	p[0] = ['function', p[2], p[3], p[5]]
 
 # A function's local variables list
@@ -177,3 +186,87 @@ lexer = lex.lex()
 
 # Build the parser
 parser = yacc.yacc()
+
+# Code generator
+opcodes = {
+	'push': 232,
+	'storew': 255,
+}
+
+def generate_code():
+	offset = 0x3E
+	bitcode = ''
+	abbreviations_offset = offset
+	header_extension = offset
+	objects_offset = offset
+
+	# Build global vars table
+	globals_offset = offset
+	for k, v in globalvars.items():
+		globalvars[k]['addr'] = offset
+		offset += 2
+		bitcode += pack('>H', v['value'])
+
+	# Build arrays
+	for k, v in arrays.items():
+		arrays[k]['addr'] = offset
+		offset += 2 * v['len']
+		bitcode += '\x00' * (2 * v['len'])
+
+	# Build the functions
+	functions_offset = offset
+
+	# Add the first function
+
+	# Compile the rest
+	for k, v in functionlist.items():
+		# Align the function to a packed address
+		while offset % 4:
+			offset += 1
+			bitcode += '\x00'
+		functionlist[k]['addr'] = offset
+
+		# Push the number of locals
+		bitcode += pack('>B', len(v['localvars']) - 1)
+
+		# Encode instructions
+
+
+	# Static strings
+	strings_offset = offset
+
+	# Add the header
+	header = [
+		5, 0, # Version number, Flags 1
+		1, # Release number
+		0, # High memory
+		0, # PC
+		0, # Dictionary
+		objects_offset, # Object table
+		globals_offset, # Global variables table
+		0, # Static memory
+		0, # Flags 2
+		time.strftime('%y%m%d'), # Serial number
+		abbreviations_offset, # Abbreviations table
+		0, # File length
+		0, # Checksum
+		0, 0, # Interpreter number, version
+		0, 0, # Screen height and width
+		0, # Screen width in units
+		0, # Screen height in units
+		0, 0, # Font width and height in units
+		functions_offset, # Functions offset
+		strings_offset, # Static strings offset
+		0, 0, # Default colours
+		0, # Terminating characters table
+		0, # Total width in pixels of text sent to output stream 3 
+		0, 0, # Z-Machine Spec version number
+		0, # Alphabet table address
+		header_extension, # Header extension table
+		0, 0, # ? ?
+		'INFA'
+	]
+	header_format = '>BBHHHHHHHH6sHHHBBBBHHBBHHBBHHBBHHHH4s'
+	bitcode = pack(header_format, *header) + bitcode
+
+	return bitcode
