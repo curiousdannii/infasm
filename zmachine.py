@@ -5,7 +5,7 @@
 from struct import pack
 import time
 import warnings
-from parser import *
+from parser import constants, globalvars, parser, arrays
 
 # Code generator
 opcodes = {
@@ -13,85 +13,114 @@ opcodes = {
 	'push': 'VAR:232',
 }
 
-def generate_code():
-	offset = 0x3E
-	bitcode = ''
-	abbreviations_offset = offset
-	header_extension = offset
-	objects_offset = offset
+class ZArrays():
+	def __init__(self, vm, arrays):
+		self.vm = vm
+		self.data = arrays.data
+		self.names = arrays.names
 
-	# Build global vars table
-	globals_offset = offset
-	for k, v in globalvars.items():
-		globalvars[k]['addr'] = offset
-		offset += 2
-		bitcode += pack('>H', v['value'])
+	def bytecode(self):
+		'''Output arrays to bytecode'''
+		for i in range(len(self.data)):
+			array = self.data[i]
+			array.addr = self.vm.offset
+			size = array.size * array.length
+			self.vm.offset += size
+			self.vm.bytecode += '\x00' * size
 
-	# Build arrays
-	for k, v in arrays.items():
-		arrays[k]['addr'] = offset
-		offset += 2 * v['len']
-		bitcode += '\x00' * 2 * v['len']
+class ZGlobals():
+	def __init__(self, vm, globalvars):
+		self.vm = vm
+		self.data = globalvars.data
+		self.names = globalvars.names
 
-	# Build the functions
-	functions_offset = offset
+	def bytecode(self):
+		'''Output globals to bytecode'''
+		for i in range(len(self.data)):
+			globalvar = self.data[i]
+			globalvar.addr = self.vm.offset
+			self.vm.offset += 2
+			self.vm.bytecode += pack('>H', globalvar.value)
 
-	# Add the first function
+class zmachine():
+	'''Code generator for the Z-Machine'''
 
-	# Compile the rest
-	for k, v in functionlist.items():
-		# Align the function to a packed address
-		while offset % 4:
-			offset += 1
-			bitcode += '\x00'
-		functionlist[k]['addr'] = offset
+	def __init__(self):
+		self.offset = 0x3E
+		self.bytecode = ''
+		self.arrays = ZArrays(self, arrays)
+		self.globals = ZGlobals(self, globalvars)
 
-		# Push the number of locals
-		bitcode += pack('>B', len(v['localvars']))
+	def generate_code(self):
+		abbreviations_offset = self.offset
+		objects_offset = self.offset
 
-		# Encode instructions
-		for s in v['statements']:
-			if s[2] not in opcodes:
-				warnings.warn('''Line %d: no opcode named %s''' % (s[1], s[2]))
-				continue
+		# Build global vars table
+		globals_offset = self.offset
+		self.globals.bytecode()
 
-			# Process operands
+		# Build arrays
+		self.arrays.bytecode()
 
-	# Static strings
-	strings_offset = offset
+		# Build the functions
+		functions_offset = self.offset
 
-	# Add the header
-	header = [
-		5, 0, # Version number, Flags 1
-		1, # Release number
-		0, # High memory
-		0, # PC
-		0, # Dictionary
-		objects_offset, # Object table
-		globals_offset, # Global variables table
-		0, # Static memory
-		0, # Flags 2
-		time.strftime('%y%m%d'), # Serial number
-		abbreviations_offset, # Abbreviations table
-		0, # File length
-		0, # Checksum
-		0, 0, # Interpreter number, version
-		0, 0, # Screen height and width
-		0, # Screen width in units
-		0, # Screen height in units
-		0, 0, # Font width and height in units
-		functions_offset, # Functions offset
-		strings_offset, # Static strings offset
-		0, 0, # Default colours
-		0, # Terminating characters table
-		0, # Total width in pixels of text sent to output stream 3 
-		0, 0, # Z-Machine Spec version number
-		0, # Alphabet table address
-		header_extension, # Header extension table
-		0, 0, # ? ?
-		'INFA'
-	]
-	header_format = '>BBHHHHHHHH6sHHHBBBBHHBBHHBBHHBBHHHH4s'
-	bitcode = pack(header_format, *header) + bitcode
+		# Add the first function
+		a="""
+		# Compile the rest
+		for k, v in functionlist.items():
+			# Align the function to a packed address
+			while offset % 4:
+				self.offset += 1
+				bitcode += '\x00'
+			functionlist[k]['addr'] = self.offset
 
-	return bitcode
+			# Push the number of locals
+			bitcode += pack('>B', len(v['localvars']))
+
+			# Encode instructions
+			for s in v['statements']:
+				if s[2] not in opcodes:
+					warnings.warn('''Line %d: no opcode named %s''' % (s[1], s[2]))
+					continue
+
+				# Process operands
+"""
+		# Static strings
+		strings_offset = self.offset
+
+		# Add the header
+		header = [
+			5, 0, # Version number, Flags 1
+			1, # Release number
+			0, # High memory
+			0, # PC
+			0, # Dictionary
+			objects_offset, # Object table
+			globals_offset, # Global variables table
+			0, # Static memory
+			0, # Flags 2
+			time.strftime('%y%m%d'), # Serial number
+			abbreviations_offset, # Abbreviations table
+			0, # File length
+			0, # Checksum
+			0, 0, # Interpreter number, version
+			0, 0, # Screen height and width
+			0, # Screen width in units
+			0, # Screen height in units
+			0, 0, # Font width and height in units
+			functions_offset, # Functions offset
+			strings_offset, # Static strings offset
+			0, 0, # Default colours
+			0, # Terminating characters table
+			0, # Total width in pixels of text sent to output stream 3 
+			0, 0, # Z-Machine Spec version number
+			0, # Alphabet table address
+			0, # Header extension table
+			0, 0, # ? ?
+			'INFA'
+		]
+		header_format = '>BBHHHHHHHH6sHHHBBBBHHBBHHBBHHBBHHHH4s'
+		self.bytecode = pack(header_format, *header) + self.bytecode
+
+		return self.bytecode
