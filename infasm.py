@@ -133,7 +133,7 @@ def p_global(p):
 functionlist = {}
 def p_function(p):
 	'''function : '[' ID localvars ';' statements ']' ';' '''
-	functionlist[p[2]] = {'localvars': p[3], 'statements': p[5]}
+	functionlist[p[2]] = {'localvars': p[3][1:], 'statements': p[5][1:]}
 	p[0] = ['function', p[2], p[3], p[5]]
 
 # A function's local variables list
@@ -159,7 +159,7 @@ def p_statements(p):
 # An actual statement! :)
 def p_statement(p):
 	'''statement : OPCODE operands ';' '''
-	p[0] = ['statement', p[1], p[2]]
+	p[0] = ['statement', p.lineno(1), p[1], p[2]]
 
 # The list of operands
 def p_operands(p):
@@ -189,8 +189,8 @@ parser = yacc.yacc()
 
 # Code generator
 opcodes = {
-	'push': 232,
-	'storew': 255,
+	'storew': 'VAR:225',
+	'push': 'VAR:232',
 }
 
 def generate_code():
@@ -211,7 +211,7 @@ def generate_code():
 	for k, v in arrays.items():
 		arrays[k]['addr'] = offset
 		offset += 2 * v['len']
-		bitcode += '\x00' * (2 * v['len'])
+		bitcode += '\x00' * 2 * v['len']
 
 	# Build the functions
 	functions_offset = offset
@@ -227,10 +227,15 @@ def generate_code():
 		functionlist[k]['addr'] = offset
 
 		# Push the number of locals
-		bitcode += pack('>B', len(v['localvars']) - 1)
+		bitcode += pack('>B', len(v['localvars']))
 
 		# Encode instructions
+		for s in v['statements']:
+			if s[2] not in opcodes:
+				warnings.warn('''Line %d: no opcode named %s''' % (s[1], s[2]))
+				continue
 
+			# Process operands
 
 	# Static strings
 	strings_offset = offset
