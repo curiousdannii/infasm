@@ -4,9 +4,36 @@
 
 from ply import yacc
 import warnings
-from lexer import tokens
+from lexer import lexer, tokens
 
 # An assembly file
+class File():
+	def __init__(self):
+		self.arrays = DirectiveCollection('Array')
+		self.constants = DirectiveCollection('Constant')
+		self.globals = DirectiveCollection('Global')
+		self.functions = DirectiveCollection('Function')
+
+	def append(self, item):
+		if isinstance(item, Array):
+			self.arrays.append(item)
+		elif isinstance(item, Constant):
+			self.constants.append(item)
+		elif isinstance(item, Global):
+			self.globals.append(item)
+
+class DirectiveCollection():
+	def __init__(self, label):
+		self.label = label
+		self.data = []
+		self.names = {}
+
+	def append(self, item):
+		self.data.append(item)
+		if item.name in self.names:
+			warnings.warn('''Line %d: %s '%s' already defined''' % (item.lineno, self.label, item.name))
+		self.names[item.name] = item
+
 def p_file(p):
 	'''file : file directive
             | empty'''
@@ -15,7 +42,7 @@ def p_file(p):
 			p[1].append(p[2])
 		p[0] = p[1]
 	else:
-		p[0] = ['file']
+		p[0] = File()
 
 # An Inform 6 directive... or some of them at least
 def p_directive(p):
@@ -33,26 +60,13 @@ class Array():
 		self.size = size
 		self.lineno = lineno
 
-class Arrays():
-	def __init__(self):
-		self.data = []
-		self.names = {}
-
-	def append(self, array):
-		self.data.append(array)
-		if array.name in self.names:
-			warnings.warn('''Line %d: Array '%s' already defined, overwriting''' % (array.lineno, array.name))
-		self.names[array.name] = array
-
-arrays = Arrays()
-
 def p_wordarray(p):
 	'''array : ARRAY ID '-' '-' '>' NUMBER ';' '''
-	arrays.append(Array(p[2], p[6], 2, p.lineno(1)))
+	p[0] = Array(p[2], p[6], 2, p.lineno(1))
 
 def p_bytearray(p):
 	'''array : ARRAY ID '-' '>' NUMBER ';' '''
-	arrays.append(Array(p[2], p[5], 1, p.lineno(1)))
+	p[0] = Array(p[2], p[5], 1, p.lineno(1))
 
 # Constant declarations
 class Constant():
@@ -61,29 +75,16 @@ class Constant():
 		self.value = value
 		self.lineno = lineno
 
-class Constants():
-	def __init__(self):
-		self.data = []
-		self.names = {}
-
-	def append(self, array):
-		self.data.append(array)
-		if array.name in self.names:
-			warnings.warn('''Line %d: Constant '%s' already defined, overwriting''' % (array.lineno, array.name))
-		self.names[array.name] = array
-
-constants = Constants()
-
 def p_constant(p):
 	'''constant : CONSTANT ID '=' NUMBER ';'
 	            | CONSTANT ID NUMBER ';'
 	            | CONSTANT ID ';' '''
 	if len(p) == 6:
-		constants.append(Constant(p[2], p[4], p.lineno(1)))
+		p[0] = Constant(p[2], p[4], p.lineno(1))
 	elif len(p) == 5:
-		constants.append(Constant(p[2], p[3], p.lineno(1)))
+		p[0] = Constant(p[2], p[3], p.lineno(1))
 	else:
-		constants.append(Constant(p[2], 0, p.lineno(1)))
+		p[0] = Constant(p[2], 0, p.lineno(1))
 
 # Global variables
 class Global():
@@ -92,22 +93,9 @@ class Global():
 		self.value = value
 		self.lineno = lineno
 
-class Globals():
-	def __init__(self):
-		self.data = []
-		self.names = {}
-
-	def append(self, array):
-		self.data.append(array)
-		if array.name in self.names:
-			warnings.warn('''Line %d: Global '%s' already defined, overwriting''' % (array.lineno, array.name))
-		self.names[array.name] = array
-
-globalvars = Globals()
-
 def p_global(p):
 	'''global : GLOBAL ID '=' NUMBER ';' '''
-	globalvars.append(Global(p[2], p[6], p.lineno(1)))
+	p[0] = Global(p[2], p[6], p.lineno(1))
 
 # An Inform 6 function
 def p_function(p):

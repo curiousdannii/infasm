@@ -5,7 +5,6 @@
 from struct import pack
 import time
 import warnings
-from parser import constants, globalvars, parser, arrays
 
 # Code generator
 opcodes = {
@@ -13,27 +12,22 @@ opcodes = {
 	'push': 'VAR:232',
 }
 
-class ZArrays():
-	def __init__(self, vm, arrays):
+class ZDirectiveCollection():
+	def __init__(self, vm, collection):
 		self.vm = vm
-		self.data = arrays.data
-		self.names = arrays.names
+		self.data = collection.data
+		self.names = collection.names
 
+class ZArrays(ZDirectiveCollection):
 	def bytecode(self):
 		'''Output arrays to bytecode'''
-		for i in range(len(self.data)):
-			array = self.data[i]
+		for array in self.data:
 			array.addr = self.vm.offset
 			size = array.size * array.length
 			self.vm.offset += size
 			self.vm.bytecode += '\x00' * size
 
-class ZGlobals():
-	def __init__(self, vm, globalvars):
-		self.vm = vm
-		self.data = globalvars.data
-		self.names = globalvars.names
-
+class ZGlobals(ZDirectiveCollection):
 	def bytecode(self):
 		'''Output globals to bytecode'''
 		for i in range(len(self.data)):
@@ -42,30 +36,9 @@ class ZGlobals():
 			self.vm.offset += 2
 			self.vm.bytecode += pack('>H', globalvar.value)
 
-class zmachine():
-	'''Code generator for the Z-Machine'''
-
-	def __init__(self):
-		self.offset = 0x3E
-		self.bytecode = ''
-		self.arrays = ZArrays(self, arrays)
-		self.globals = ZGlobals(self, globalvars)
-
-	def generate_code(self):
-		abbreviations_offset = self.offset
-		objects_offset = self.offset
-
-		# Build global vars table
-		globals_offset = self.offset
-		self.globals.bytecode()
-
-		# Build arrays
-		self.arrays.bytecode()
-
-		# Build the functions
-		functions_offset = self.offset
-
-		# Add the first function
+class ZFunctions(ZDirectiveCollection):
+	def bytecode(self):
+		'''Output functions to bytecode'''
 		a="""
 		# Compile the rest
 		for k, v in functionlist.items():
@@ -85,7 +58,36 @@ class zmachine():
 					continue
 
 				# Process operands
-"""
+		"""
+
+class zmachine():
+	'''Code generator for the Z-Machine'''
+
+	def __init__(self, asmfile):
+		self.offset = 0x3E
+		self.bytecode = ''
+		self.arrays = ZArrays(self, asmfile.arrays)
+		self.constants = asmfile.constants
+		self.globals = ZGlobals(self, asmfile.globals)
+		self.functions = ZFunctions(self, asmfile.functions)
+
+	def generate_code(self):
+		abbreviations_offset = self.offset
+		objects_offset = self.offset
+
+		# Build global vars table
+		globals_offset = self.offset
+		self.globals.bytecode()
+
+		# Build arrays
+		self.arrays.bytecode()
+
+		# Add the first function
+
+		# Build the functions
+		functions_offset = self.offset
+		self.functions.bytecode()
+
 		# Static strings
 		strings_offset = self.offset
 
