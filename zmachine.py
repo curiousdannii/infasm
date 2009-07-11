@@ -30,8 +30,7 @@ class ZArrays(ZDirectiveCollection):
 class ZGlobals(ZDirectiveCollection):
 	def bytecode(self):
 		'''Output globals to bytecode'''
-		for i in range(len(self.data)):
-			globalvar = self.data[i]
+		for globalvar in self.data:
 			globalvar.addr = self.vm.offset
 			self.vm.offset += 2
 			self.vm.bytecode += pack('>H', globalvar.value)
@@ -39,26 +38,23 @@ class ZGlobals(ZDirectiveCollection):
 class ZFunctions(ZDirectiveCollection):
 	def bytecode(self):
 		'''Output functions to bytecode'''
-		a="""
-		# Compile the rest
-		for k, v in functionlist.items():
+		for function in self.data:
 			# Align the function to a packed address
-			while offset % 4:
-				self.offset += 1
-				bitcode += '\x00'
-			functionlist[k]['addr'] = self.offset
+			while self.vm.offset % 4:
+				self.vm.offset += 1
+				self.vm.bytecode += '\x00'
+			function.addr = self.vm.offset
 
 			# Push the number of locals
-			bitcode += pack('>B', len(v['localvars']))
+			self.vm.bytecode += pack('>B', len(function.locals))
 
 			# Encode instructions
-			for s in v['statements']:
+			for s in function.statements:
 				if s[2] not in opcodes:
 					warnings.warn('''Line %d: no opcode named %s''' % (s[1], s[2]))
 					continue
 
 				# Process operands
-		"""
 
 class zmachine():
 	'''Code generator for the Z-Machine'''
@@ -67,11 +63,13 @@ class zmachine():
 		self.offset = 0x3E
 		self.bytecode = ''
 		self.arrays = ZArrays(self, asmfile.arrays)
-		self.constants = asmfile.constants
+		self.constants = ZDirectiveCollection(self, asmfile.constants)
 		self.globals = ZGlobals(self, asmfile.globals)
 		self.functions = ZFunctions(self, asmfile.functions)
 
-	def generate_code(self):
+		self.assemble()
+
+	def assemble(self):
 		abbreviations_offset = self.offset
 		objects_offset = self.offset
 

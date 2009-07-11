@@ -21,6 +21,8 @@ class File():
 			self.constants.append(item)
 		elif isinstance(item, Global):
 			self.globals.append(item)
+		elif isinstance(item, Function):
+			self.functions.append(item)
 
 class DirectiveCollection():
 	def __init__(self, label):
@@ -98,9 +100,16 @@ def p_global(p):
 	p[0] = Global(p[2], p[6], p.lineno(1))
 
 # An Inform 6 function
+class Function():
+	def __init__(self, name, localvars, statements, lineno):
+		self.name = name
+		self.locals = localvars[1:]
+		self.statements = statements[1:]
+		self.lineno = lineno
+
 def p_function(p):
 	'''function : '[' ID localvars ';' statements ']' ';' '''
-	p[0] = ['function', p.lineno(1), p[2], p[3], p[5]]
+	p[0] = Function(p[2], p[3], p[5], p.lineno(1))
 
 # A function's local variables list
 def p_localvars(p):
