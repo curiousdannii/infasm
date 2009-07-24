@@ -8,8 +8,8 @@ import warnings
 
 # Code generator
 opcodes = {
-	'storew': 'VAR:225',
-	'push': 'VAR:232',
+	'storew': ('VAR', 225),
+	'push': ('VAR', 232),
 }
 
 class ZDirectiveCollection():
@@ -17,6 +17,18 @@ class ZDirectiveCollection():
 		self.vm = vm
 		self.data = collection.data
 		self.names = collection.names
+
+	def __contains__(self, key):
+		return key in self.names
+
+	def __getitem__(self, key):
+		if type(key) == int:
+			return self.data[key]
+		else:
+			return self.names[key]
+
+	def index(self, key):
+		return self.data.index(key)
 
 class ZArrays(ZDirectiveCollection):
 	def bytecode(self):
@@ -53,8 +65,74 @@ class ZFunctions(ZDirectiveCollection):
 				if s[2] not in opcodes:
 					warnings.warn('''Line %d: no opcode named %s''' % (s[1], s[2]))
 					continue
+				instruction = opcodes[s[2]]
 
 				# Process operands
+				operands = []
+				for o in s[3]:
+					# Literal constant
+					if type(o) == int:
+						operands.append({
+							'value': o,
+							'type': (o <= 0xFF and 1 or 0)
+						})
+
+					# Stack pointer
+					elif o == 'sp':
+						operands.append({
+							'value': 0,
+							'type': 2
+						})
+
+					# Local variable
+					elif o in function.locals:
+						operands.append({
+							'value': function.locals.index(o) + 1,
+							'type': 2
+						})
+
+					# Constant directive
+					elif o in self.vm.constants:
+						value = self.vm.constants[o].value
+						operands.append({
+							'value': value,
+							'type': (value <= 0xFF and 1 or 0)
+						})
+
+					# Global variable
+					elif o in self.vm.globals:
+						operands.append({
+							'value': self.vm.globals.index(o) + 16,
+							'type': 2
+						})
+
+					# Array directive
+					elif o in self.vm.arrays:
+						value = self.vm.arrays[o].addr
+						operands.append({
+							'value': value,
+							'type': (value <= 0xFF and 1 or 0)
+						})
+
+				print operands
+
+				if instruction[0] == 'VAR':
+					self.vm.bytecode += pack('>B', instruction[1])
+					# Output operand types
+					types = 0
+					for i in range(len(operands)):
+						types = types | (operands[i]['type'] << (6 - 2 * i))
+					for i in range(len(operands), 4):
+						types = types | (3 << (6 - 2 * i))
+					self.vm.bytecode += pack('>B', types)
+
+				# Output the operand values
+				for o in operands:
+					if o['type'] == 0:
+						self.vm.bytecode += pack('>H', o['value'])
+					elif o['type'] != 3:
+						self.vm.bytecode += pack('>B', o['value'])
+					
 
 class zmachine():
 	'''Code generator for the Z-Machine'''
@@ -81,6 +159,7 @@ class zmachine():
 		self.arrays.bytecode()
 
 		# Add the first function
+		starting_function = 'main'
 
 		# Build the functions
 		functions_offset = self.offset
@@ -94,7 +173,7 @@ class zmachine():
 			5, 0, # Version number, Flags 1
 			1, # Release number
 			0, # High memory
-			0, # PC
+			self.functions[starting_function].addr, # PC
 			0, # Dictionary
 			objects_offset, # Object table
 			globals_offset, # Global variables table
@@ -102,7 +181,7 @@ class zmachine():
 			0, # Flags 2
 			time.strftime('%y%m%d'), # Serial number
 			abbreviations_offset, # Abbreviations table
-			0, # File length
+			(len(self.bytecode) + 0x3E) / 4, # File length
 			0, # Checksum
 			0, 0, # Interpreter number, version
 			0, 0, # Screen height and width
@@ -122,5 +201,3 @@ class zmachine():
 		]
 		header_format = '>BBHHHHHHHH6sHHHBBBBHHBBHHBBHHBBHHHH4s'
 		self.bytecode = pack(header_format, *header) + self.bytecode
-
-		return self.bytecode

@@ -103,8 +103,8 @@ def p_global(p):
 class Function():
 	def __init__(self, name, localvars, statements, lineno):
 		self.name = name
-		self.locals = localvars[1:]
-		self.statements = statements[1:]
+		self.locals = localvars
+		self.statements = statements
 		self.lineno = lineno
 
 def p_function(p):
@@ -119,7 +119,7 @@ def p_localvars(p):
 		p[1].append(p[2])
 		p[0] = p[1]
 	else:
-		p[0] = ['localvars']
+		p[0] = []
 
 # A list of statements
 def p_statements(p):
@@ -129,7 +129,7 @@ def p_statements(p):
 		p[1].append(p[2])
 		p[0] = p[1]
 	elif len(p) == 2:
-		p[0] = ['statements']
+		p[0] = []
 
 # An actual statement! :)
 def p_statement(p):
@@ -145,7 +145,7 @@ def p_operands(p):
 		p[1].append(p[2])
 		p[0] = p[1]
 	elif len(p) == 2:
-		p[0] = ['operands']
+		p[0] = []
 
 # An empty terminal, simplifies a lot of the above
 def p_empty(p):
