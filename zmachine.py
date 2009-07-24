@@ -5,9 +5,13 @@
 from struct import pack
 import time
 import warnings
+from parser import Function
 
 # Code generator
 opcodes = {
+	'rtrue': ('0OP', 176),
+	'quit': ('0OP', 186),
+	'call_vs': ('VAR', 224),
 	'storew': ('VAR', 225),
 	'push': ('VAR', 232),
 }
@@ -58,66 +62,54 @@ class ZFunctions(ZDirectiveCollection):
 			function.addr = self.vm.offset
 
 			# Push the number of locals
-			self.vm.bytecode += pack('>B', len(function.locals))
+			self.vm.bytecode += pack('>B', len(function.locals)) + '\x00' * 2 * len(function.locals)
 
 			# Encode instructions
 			for s in function.statements:
-				if s[2] not in opcodes:
-					warnings.warn('''Line %d: no opcode named %s''' % (s[1], s[2]))
+				if s[1] not in opcodes:
+					warnings.warn('''Line %d: no opcode named %s''' % (s[0], s[1]))
 					continue
-				instruction = opcodes[s[2]]
+				instruction = opcodes[s[1]]
 
 				# Process operands
 				operands = []
-				for o in s[3]:
+				for o in s[2]:
 					# Literal constant
 					if type(o) == int:
-						operands.append({
-							'value': o,
-							'type': (o <= 0xFF and 1 or 0)
-						})
+						value = o
+						op_type = (o <= 0xFF and 1 or 0)
 
 					# Stack pointer
 					elif o == 'sp':
-						operands.append({
-							'value': 0,
-							'type': 2
-						})
+						value = 0
+						op_type = 2
 
 					# Local variable
 					elif o in function.locals:
-						operands.append({
-							'value': function.locals.index(o) + 1,
-							'type': 2
-						})
+						value = function.locals.index(o) + 1
+						op_type = 2
 
 					# Constant directive
 					elif o in self.vm.constants:
 						value = self.vm.constants[o].value
-						operands.append({
-							'value': value,
-							'type': (value <= 0xFF and 1 or 0)
-						})
+						op_type = (value <= 0xFF and 1 or 0)
 
 					# Global variable
 					elif o in self.vm.globals:
-						operands.append({
-							'value': self.vm.globals.index(o) + 16,
-							'type': 2
-						})
+						value = self.vm.globals.index(o) + 16
+						op_type = 2
 
 					# Array directive
 					elif o in self.vm.arrays:
 						value = self.vm.arrays[o].addr
-						operands.append({
-							'value': value,
-							'type': (value <= 0xFF and 1 or 0)
-						})
+						op_type = (value <= 0xFF and 1 or 0)
 
-				print operands
+					operands.append({'value': value, 'type': op_type})
+
+				# Output the instruction
+				self.vm.bytecode += pack('>B', instruction[1])
 
 				if instruction[0] == 'VAR':
-					self.vm.bytecode += pack('>B', instruction[1])
 					# Output operand types
 					types = 0
 					for i in range(len(operands)):
@@ -138,7 +130,7 @@ class zmachine():
 	'''Code generator for the Z-Machine'''
 
 	def __init__(self, asmfile):
-		self.offset = 0x3E
+		self.offset = 0x40
 		self.bytecode = ''
 		self.arrays = ZArrays(self, asmfile.arrays)
 		self.constants = ZDirectiveCollection(self, asmfile.constants)
@@ -159,7 +151,19 @@ class zmachine():
 		self.arrays.bytecode()
 
 		# Add the first function
-		starting_function = 'main'
+		main_function = self.functions['main']
+		if len(self.functions[0].locals) > 0:
+			starting_function = '__main__'
+			self.functions.data.insert(0, Function('__main__', [], [[0, 'call_vs', []], [0, 'quit', []]], 0))
+			self.functions.names['__main__'] = self.functions.data[0]
+			if main_function.statements[-1][1] not in ('rtrue'):
+				main_function.statements.append([0, 'rtrue', []])
+		else:
+			starting_function = 'main'
+			if main_function.statements[-1][1] in ('rtrue'):
+				main_function.statements.pop()
+			if main_function.statements[-1][1] != 'quit':
+				main_function.statements.append([0, 'quit', []])
 
 		# Build the functions
 		functions_offset = self.offset
@@ -173,7 +177,7 @@ class zmachine():
 			5, 0, # Version number, Flags 1
 			1, # Release number
 			0, # High memory
-			self.functions[starting_function].addr, # PC
+			self.functions[starting_function].addr + 1, # PC
 			0, # Dictionary
 			objects_offset, # Object table
 			globals_offset, # Global variables table

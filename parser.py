@@ -134,7 +134,7 @@ def p_statements(p):
 # An actual statement! :)
 def p_statement(p):
 	'''statement : OPCODE operands ';' '''
-	p[0] = ['statement', p.lineno(1), p[1], p[2]]
+	p[0] = [p.lineno(1), p[1], p[2]]
 
 # The list of operands
 def p_operands(p):
