@@ -1,1 +1,1 @@
-
+from infasm import *

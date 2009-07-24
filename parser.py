@@ -4,7 +4,7 @@
 
 from ply import yacc
 import warnings
-from lexer import lexer, tokens
+from lexer import tokens
 
 # An assembly file
 class File():

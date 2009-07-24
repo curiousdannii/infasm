@@ -124,7 +124,6 @@ class ZFunctions(ZDirectiveCollection):
 						self.vm.bytecode += pack('>H', o['value'])
 					elif o['type'] != 3:
 						self.vm.bytecode += pack('>B', o['value'])
-					
 
 class zmachine():
 	'''Code generator for the Z-Machine'''
@@ -151,19 +150,19 @@ class zmachine():
 		self.arrays.bytecode()
 
 		# Add the first function
-		main_function = self.functions['main']
+		statements = self.functions['main'].statements
 		if len(self.functions[0].locals) > 0:
 			starting_function = '__main__'
 			self.functions.data.insert(0, Function('__main__', [], [[0, 'call_vs', []], [0, 'quit', []]], 0))
 			self.functions.names['__main__'] = self.functions.data[0]
-			if main_function.statements[-1][1] not in ('rtrue'):
-				main_function.statements.append([0, 'rtrue', []])
+			if statements[-1][1] not in ('rtrue'):
+				statements.append([0, 'rtrue', []])
 		else:
 			starting_function = 'main'
-			if main_function.statements[-1][1] in ('rtrue'):
-				main_function.statements.pop()
-			if main_function.statements[-1][1] != 'quit':
-				main_function.statements.append([0, 'quit', []])
+			if statements[-1][1] in ('rtrue'):
+				statements.pop()
+			if statements[-1][1] != 'quit':
+				statements.append([0, 'quit', []])
 
 		# Build the functions
 		functions_offset = self.offset
@@ -185,7 +184,7 @@ class zmachine():
 			0, # Flags 2
 			time.strftime('%y%m%d'), # Serial number
 			abbreviations_offset, # Abbreviations table
-			(len(self.bytecode) + 0x3E) / 4, # File length
+			(len(self.bytecode) + 0x40) / 4, # File length
 			0, # Checksum
 			0, 0, # Interpreter number, version
 			0, 0, # Screen height and width
