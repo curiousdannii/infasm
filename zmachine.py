@@ -2,7 +2,7 @@
 # Copyright (c) 2009, Dannii Willis
 # Released under a BSD-like licence, see LICENCE
 
-from struct import pack
+from struct import pack, Struct
 import time
 import warnings
 from parser import Function
@@ -15,6 +15,10 @@ opcodes = {
 	'storew': ('VAR', 225),
 	'push': ('VAR', 232),
 }
+
+# String functions, pack isn't needed for bytes
+byte = chr
+word = Struct('>H').pack
 
 class ZDirectiveCollection():
 	def __init__(self, vm, collection):
@@ -49,7 +53,7 @@ class ZGlobals(ZDirectiveCollection):
 		for globalvar in self.data:
 			globalvar.addr = self.vm.offset
 			self.vm.offset += 2
-			self.vm.bytecode += pack('>H', globalvar.value)
+			self.vm.bytecode += word(globalvar.value)
 
 class ZFunctions(ZDirectiveCollection):
 	def bytecode(self):
@@ -62,7 +66,7 @@ class ZFunctions(ZDirectiveCollection):
 			function.addr = self.vm.offset
 
 			# Push the number of locals
-			self.vm.bytecode += pack('>B', len(function.locals)) + '\x00' * 2 * len(function.locals)
+			self.vm.bytecode += byte(len(function.locals))
 
 			# Encode instructions
 			for s in function.statements:
@@ -107,7 +111,7 @@ class ZFunctions(ZDirectiveCollection):
 					operands.append({'value': value, 'type': op_type})
 
 				# Output the instruction
-				self.vm.bytecode += pack('>B', instruction[1])
+				self.vm.bytecode += byte(instruction[1])
 
 				if instruction[0] == 'VAR':
 					# Output operand types
@@ -116,14 +120,14 @@ class ZFunctions(ZDirectiveCollection):
 						types = types | (operands[i]['type'] << (6 - 2 * i))
 					for i in range(len(operands), 4):
 						types = types | (3 << (6 - 2 * i))
-					self.vm.bytecode += pack('>B', types)
+					self.vm.bytecode += byte(types)
 
 				# Output the operand values
 				for o in operands:
 					if o['type'] == 0:
-						self.vm.bytecode += pack('>H', o['value'])
+						self.vm.bytecode += word(o['value'])
 					elif o['type'] != 3:
-						self.vm.bytecode += pack('>B', o['value'])
+						self.vm.bytecode += byte(o['value'])
 
 class zmachine():
 	'''Code generator for the Z-Machine'''
@@ -153,7 +157,7 @@ class zmachine():
 		statements = self.functions['main'].statements
 		if len(self.functions[0].locals) > 0:
 			starting_function = '__main__'
-			self.functions.data.insert(0, Function('__main__', [], [[0, 'call_vs', []], [0, 'quit', []]], 0))
+			self.functions.data.insert(0, Function('__main__', [], [[0, 'call_vs', ['main']], [0, 'quit', []]], 0)) # Won't actually work yet
 			self.functions.names['__main__'] = self.functions.data[0]
 			if statements[-1][1] not in ('rtrue'):
 				statements.append([0, 'rtrue', []])

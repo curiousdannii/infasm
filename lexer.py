@@ -41,7 +41,7 @@ def t_LABEL(t):
 
 # Allow decimal and hexadecimal number literals
 def t_NUMBER(t):
-	r'(\$|-)?\d+'
+	r'(\$|-)?[0-9A-Fa-f]+'
 	if t.value[0] == '$':
 		base = 16
 		t.value = t.value[1:]

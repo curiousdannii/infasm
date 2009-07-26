@@ -16,7 +16,7 @@ def assemble(source):
 	'''Assemble a infasm source file'''
 	asmfile = parser.parse(source, lexer = lexer)
 	gen = zmachine(asmfile)
-	return gen.bytecode
+	return gen
 
 if __name__ == '__main__':
 	import os, sys
@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
 	# Assemble the story file
 	source = file(filename).read()
-	storyfile = assemble(source)
+	storyfile = assemble(source).bytecode
 	storyfilename = os.path.splitext(filename)[0] + '.z5'
 	output = open(storyfilename, 'w')
 	output.write(storyfile)
